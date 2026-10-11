@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Settlement & Liquidity Dashboard</title>
+<meta name="description" content="Daily settlement reconciliation and liquidity monitoring for a card-payments business: exceptions, aging, cash by bank, coverage and alerts.">
+<style>
+/* Layout: an operations morning view. Date control first, then the six numbers that matter,
+   alerts beside cash, the two trend charts, then the detail tables. */
+:root{color-scheme:light;
+  --page:#f9f9f7;--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--ring:rgba(11,11,11,.10);
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--seq1:#cde2fb;--seq2:#86b6ef;--seq3:#3987e5;--seq4:#1c5cab;
+  --good:#0ca30c;--warning:#fab219;--serious:#ec835a;--critical:#d03b3b;--good-text:#006300;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;
+  --page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--seq1:#184f95;--seq2:#1c5cab;--seq3:#3987e5;--seq4:#86b6ef;--good-text:#0ca30c}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --page:#0d0d0d;--surface:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--ring:rgba(255,255,255,.10);
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--seq1:#184f95;--seq2:#1c5cab;--seq3:#3987e5;--seq4:#86b6ef;--good-text:#0ca30c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.5 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 56px}
+h1{font-size:clamp(26px,4vw,34px);line-height:1.1;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:15px;margin:0 0 10px}
+p{margin:0 0 10px;max-width:75ch}
+.lede{color:var(--ink2)}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
+.links a{font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;border:1px solid var(--ring);background:var(--surface);padding:6px 12px;border-radius:999px}
+.links a:hover,.links a:focus-visible{border-color:var(--s1);outline:none}
+.card{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:16px;min-width:0}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;position:sticky;top:0;z-index:5;margin-bottom:14px}
+.bar .date{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;min-width:150px}
+.bar input[type=range]{flex:1 1 220px;accent-color:var(--s1)}
+.bar button{font:600 13px var(--sans);color:var(--ink);background:transparent;border:1px solid var(--ring);border-radius:8px;padding:6px 10px;cursor:pointer}
+.bar button:hover,.bar button:focus-visible{border-color:var(--s1);outline:none}
+.jump{font:13px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--ring);border-radius:8px;padding:6px 8px;max-width:100%}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--ring);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.kpi .k{font-size:12px;color:var(--ink2)}
+.kpi .v{font-size:24px;font-weight:600;margin:2px 0}
+.kpi .s{font-size:12px;color:var(--muted)}
+.kpi .st{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2);margin-top:4px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:14px;margin-bottom:14px}
+.grid2.even{grid-template-columns:repeat(2,minmax(0,1fr))}
+.alerts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.alerts li{display:flex;gap:10px;align-items:flex-start;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--ring)}
+.icon{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.alerts .lvl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);display:block}
+.empty{color:var(--ink2);font-size:14px}
+.chart{position:relative}
+.chart svg{width:100%;height:auto;display:block;overflow:visible}
+.chart .gl{stroke:var(--grid)} .chart .ax{stroke:var(--axis)}
+.chart .tk{fill:var(--muted);font:11px var(--sans);font-variant-numeric:tabular-nums}
+.chart .lab{font:600 11px var(--sans);fill:var(--ink2)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--ink2);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.legend i.ln{height:2px;width:14px;vertical-align:3px}
+.tip{position:absolute;pointer-events:none;background:var(--surface);color:var(--ink);border:1px solid var(--ring);box-shadow:0 4px 14px rgba(0,0,0,.12);font-size:12px;padding:8px 10px;border-radius:8px;white-space:nowrap;opacity:0;transition:opacity .08s;z-index:3}
+.tip b{display:block;margin-bottom:2px}
+.tip .row{display:flex;justify-content:space-between;gap:14px;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--grid);white-space:nowrap;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{font-size:11px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.03em}
+td.cell{border-radius:4px}
+.sec{margin-top:26px}
+.sec ul{margin:0;padding-left:20px;max-width:80ch} .sec li{margin-bottom:6px}
+.note{font-size:13px;color:var(--ink2)}
+code{font-size:12.5px;background:var(--grid);padding:1px 5px;border-radius:4px}
+@media (max-width:1020px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:820px){.grid2,.grid2.even{grid-template-columns:1fr}}
+@media (max-width:520px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.bar{position:static}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Settlement & Liquidity Dashboard</h1>
+  <p class="lede">The morning view for a card-payments treasury and operations team: did the networks pay what they owed, what is still open and how old it is, and whether there is enough cash in the right accounts to pay merchants tomorrow.</p>
+  <div class="links"><a href="https://github.com/martinogie/settlement-liquidity-dashboard">Source code on GitHub</a><a href="https://martinogie.github.io/treasury-cash-forecasting/">Treasury Cash Forecast</a><a href="https://martinogie.github.io/transaction-fraud-detection/">Fraud Alert Budget Explorer</a><a href="https://martinogie.github.io/credit-risk-scoring/">Loan Scorecard Studio</a><a href="https://martinogie.github.io/merchant-churn-prediction/">Merchant Churn Study</a></div>
+
+  <div class="card bar" role="group" aria-label="As-of date">
+    <button type="button" id="prev" aria-label="Previous business day">◀</button>
+    <div class="date" id="date" aria-live="polite"></div>
+    <button type="button" id="next" aria-label="Next business day">▶</button>
+    <input type="range" id="day" min="0" value="0" aria-label="As-of business day">
+    <select class="jump" id="jump" aria-label="Jump to an incident"></select>
+    <span id="badges" style="display:flex;gap:6px"></span>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid2">
+    <div class="card"><h2>Alerts</h2><ul class="alerts" id="alerts"></ul></div>
+    <div class="card"><h2>Cash by bank, $M</h2><div class="chart" id="c-cash"></div>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Bank A · collections + operating</span><span><i style="background:var(--s2)"></i>Bank B · collections + payouts</span><span><i style="background:var(--s3)"></i>Bank C · reserve</span><span><i class="ln" style="background:var(--ink2)"></i>Restricted reserve</span></div></div>
+  </div>
+  <div class="grid2 even">
+    <div class="card"><h2>Liquidity coverage, days of payouts</h2><div class="chart" id="c-cov"></div>
+      <div class="legend"><span><i class="ln" style="background:var(--s1)"></i>Coverage</span><span><i class="ln" style="background:var(--warning)"></i>Target 3.0</span><span><i class="ln" style="background:var(--critical)"></i>Limit 2.5</span></div></div>
+    <div class="card"><h2>Open settlement exceptions, $M</h2><div class="chart" id="c-exc"></div>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Not received</span><span><i style="background:var(--s2)"></i>Short-paid</span><span><i style="background:var(--s3)"></i>Unidentified cash</span></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px"><h2>Settlement by source</h2>
+    <div class="tablewrap"><table id="t-src"><thead></thead><tbody></tbody></table></div>
+    <p class="note" style="margin-top:8px">On time = share of value due in the last 5 business days that arrived on its expected date. Aging buckets are open exceptions in $K by business days outstanding; darker cells hold more money.</p></div>
+
+  <div class="grid2 even">
+    <div class="card"><h2>Oldest open exceptions</h2><div class="tablewrap"><table id="t-top"><thead><tr><th>Item</th><th>Type</th><th>Source</th><th>Amount</th><th>Age (bd)</th></tr></thead><tbody></tbody></table></div></div>
+    <div class="card"><h2>Account balances, end of day</h2><div class="tablewrap"><table id="t-acct"><thead><tr><th>Account</th><th>Bank</th><th>$M</th></tr></thead><tbody></tbody></table></div></div>
+  </div>
+
+  <div class="sec">
+    <h2 style="font-size:20px">How it works</h2>
+    <p id="eng-lede"></p>
+    <div class="tablewrap card" style="margin:10px 0 14px"><table id="t-eng"><thead><tr><th>Pass</th><th style="text-align:left">Rule</th><th>Batches</th><th>Share</th></tr></thead><tbody></tbody></table></div>
+    <ul>
+      <li><strong>Liquidity:</strong> merchants are paid on schedule even when a network settles late, so a delay is funded from our own cash. Each evening collections are swept to the payout account, which must hold 105% of tomorrow's payouts; shortfalls are topped up from operating, then from the unrestricted reserve.</li>
+      <li><strong>Coverage</strong> is available cash (total less the restricted scheme reserve) divided by average daily payouts over the last 20 business days. The reserve requirement rose from $25M to $40M on 1 July, which is why coverage sits below the 3-day target for all of Q3.</li>
+      <li><strong>Concentration</strong> flags any bank holding more than 45% of cash.</li>
+      <li><strong>SQL:</strong> the KPIs are reproduced as SQLite queries (<code>sql/kpis.sql</code>), and tests check that SQL and Python agree.</li>
+    </ul>
+    <p class="note" style="margin-top:12px">All data is synthetic: 6 months of settlement batches from Visa, Mastercard, Amex, ACH and RTP with realistic reference loss, late, short, split and netted payments, plus three injected incidents. Built with AI-assisted coding (Claude); the design, controls and review are my own.</p>
+  </div>
+</div>
+<script>
+const D=/*DATA*/null;
+const S=D.snapshots, N=S.length, $=id=>document.getElementById(id);
+const M=v=>(v/1e6).toFixed(1), K=v=>Math.round(v/1e3).toLocaleString("en-US");
+const usd=v=>Math.abs(v)>=1e6?"$"+(v/1e6).toFixed(1)+"M":"$"+K(v)+"K";
+const pct=v=>v==null?"–":(v*100).toFixed(1)+"%";
+const fdate=s=>new Date(s+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"});
+const sdate=s=>new Date(s+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+const STATUS={red:{c:"var(--critical)",i:"!",l:"Critical"},amber:{c:"var(--warning)",i:"!",l:"Warning"},ok:{c:"var(--good)",i:"✓",l:"OK"}};
+const icon=l=>`<span class="icon" style="background:${STATUS[l].c}" aria-hidden="true">${STATUS[l].i}</span>`;
+let idx=N-1;
+
+/* ---------- generic time-series chart with crosshair tooltip ---------- */
+function tsChart(el,{series,stacked=false,bars=false,refs=[],yfmt=v=>v,tipRows}){
+  const W=640,H=230,L=40,R=10,T=10,B=24;
+  const vals=[];S.forEach((s,i)=>{let acc=0;series.forEach(se=>{const v=se.get(s);acc=stacked?acc+v:v;vals.push(acc)})});
+  refs.forEach(r=>{if(r.line)S.forEach(s=>vals.push(r.get(s)));else vals.push(r.y)});
+  let lo=stacked||bars?0:Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo)*.08;hi+=pad;if(!(stacked||bars))lo=Math.max(0,lo-pad);
+  const x=i=>L+(W-L-R)*i/(N-1), y=v=>T+(H-T-B)*(hi-v)/(hi-lo||1);
+  const nice=(hi-lo)/4,mag=Math.pow(10,Math.floor(Math.log10(nice))),step=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=nice);
+  let g="";
+  for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step)g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="tk" x="${L-6}" y="${y(v)+4}" text-anchor="end">${yfmt(v)}</text>`;
+  let lastM=-1;S.forEach((s,i)=>{const m=s.date.slice(0,7);if(m!==lastM){lastM=m;g+=`<text class="tk" x="${x(i)}" y="${H-6}" text-anchor="middle">${new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short"})}</text>`}});
+  if(bars){const bw=Math.max(1,(W-L-R)/N-1);
+    S.forEach((s,i)=>{let base=0;series.forEach(se=>{const v=se.get(s);if(v>0){g+=`<rect x="${x(i)-bw/2}" y="${y(base+v)}" width="${bw}" height="${Math.max(0,y(base)-y(base+v))}" fill="${se.color}"/>`;}base+=v})});
+  }else if(stacked){const base=new Array(N).fill(0);
+    series.forEach(se=>{const top=S.map((s,i)=>base[i]+se.get(s));
+      g+=`<path d="M${S.map((s,i)=>`${x(i)},${y(top[i])}`).join("L")}L${S.map((s,i)=>`${x(N-1-i)},${y(base[N-1-i])}`).join("L")}Z" fill="${se.color}" stroke="var(--surface)" stroke-width="2"/>`;
+      top.forEach((v,i)=>base[i]=v)});
+  }else series.forEach(se=>{g+=`<path d="M${S.map((s,i)=>`${x(i)},${y(se.get(s))}`).join("L")}" fill="none" stroke="${se.color}" stroke-width="2" stroke-linejoin="round"/>`});
+  refs.forEach(r=>{r.line?g+=`<path d="M${S.map((s,i)=>`${x(i)},${y(r.get(s))}`).join("L")}" fill="none" stroke="${r.color}" stroke-width="1.5" stroke-dasharray="5 4"/>`
+    :g+=`<line x1="${L}" x2="${W-R}" y1="${y(r.y)}" y2="${y(r.y)}" stroke="${r.color}" stroke-width="1.5" stroke-dasharray="5 4"/>`});
+  g+=`<line class="ax" x1="${L}" x2="${W-R}" y1="${y(lo)}" y2="${y(lo)}"/>`;
+  g+=`<line class="mk" y1="${T}" y2="${H-B}" stroke="var(--ink)" stroke-width="1"/><line class="hv" y1="${T}" y2="${H-B}" stroke="var(--muted)" opacity="0"/>`;
+  g+=`<rect class="hit" x="${L}" y="0" width="${W-L-R}" height="${H}" fill="transparent" style="cursor:pointer"/>`;
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${el.closest('.card').querySelector('h2').textContent}">${g}</svg><div class="tip"></div>`;
+  const svg=el.querySelector("svg"),tip=el.querySelector(".tip"),hv=svg.querySelector(".hv");
+  const at=ev=>{const r=svg.getBoundingClientRect();return Math.max(0,Math.min(N-1,Math.round(((ev.clientX-r.left)*W/r.width-L)/(W-L-R)*(N-1))))};
+  svg.querySelector(".hit").addEventListener("pointermove",ev=>{const i=at(ev),r=svg.getBoundingClientRect(),s=S[i];
+    hv.setAttribute("x1",x(i));hv.setAttribute("x2",x(i));hv.setAttribute("opacity",1);
+    tip.innerHTML=`<b>${sdate(s.date)}</b>`+tipRows(s).map(([k,v,c])=>`<div class="row"><span>${c?`<span class="dot" style="background:${c}"></span> `:""}${k}</span><span>${v}</span></div>`).join("");
+    tip.style.opacity=1;const px=x(i)*r.width/W;tip.style.left=Math.min(Math.max(px+12,0),r.width-tip.offsetWidth)+"px";tip.style.top="6px"});
+  svg.querySelector(".hit").addEventListener("pointerleave",()=>{tip.style.opacity=0;hv.setAttribute("opacity",0)});
+  svg.querySelector(".hit").addEventListener("click",ev=>{idx=at(ev);render()});
+  return i=>{const mk=svg.querySelector(".mk");mk.setAttribute("x1",x(i));mk.setAttribute("x2",x(i))};
+}
+
+const cash=tsChart($("c-cash"),{stacked:true,yfmt:v=>v.toFixed(0),
+  series:[{name:"A",color:"var(--s1)",get:s=>(s.liquidity.A_COLL+s.liquidity.OPER)/1e6},{name:"B",color:"var(--s2)",get:s=>(s.liquidity.B_COLL+s.liquidity.PAYOUT)/1e6},{name:"C",color:"var(--s3)",get:s=>s.liquidity.RESERVE/1e6}],
+  refs:[{line:true,color:"var(--ink2)",get:s=>s.liquidity.restricted/1e6}],
+  tipRows:s=>{const l=s.liquidity;return[["Bank A",M(l.A_COLL+l.OPER),"var(--s1)"],["Bank B",M(l.B_COLL+l.PAYOUT),"var(--s2)"],["Bank C",M(l.RESERVE),"var(--s3)"],["Total",M(l.total_cash)],["Restricted",M(l.restricted)]]}});
+const cov=tsChart($("c-cov"),{yfmt:v=>v.toFixed(1),series:[{color:"var(--s1)",get:s=>s.liquidity.coverage_days??0}],
+  refs:[{y:D.limits.coverage_amber,color:"var(--warning)"},{y:D.limits.coverage_red,color:"var(--critical)"}],
+  tipRows:s=>[["Coverage",(s.liquidity.coverage_days??0).toFixed(2)+" days"],["Available",M(s.liquidity.available)+"M"]]});
+const exc=tsChart($("c-exc"),{bars:true,yfmt:v=>v.toFixed(0),
+  series:[{color:"var(--s1)",get:s=>s.types["Not received"]/1e6},{color:"var(--s2)",get:s=>s.types["Short-paid"]/1e6},{color:"var(--s3)",get:s=>s.types["Unidentified cash"]/1e6}],
+  tipRows:s=>[["Not received",usd(s.types["Not received"]),"var(--s1)"],["Short-paid",usd(s.types["Short-paid"]),"var(--s2)"],["Unidentified",usd(s.types["Unidentified cash"]),"var(--s3)"],["Open items",s.kpi.open_count]]});
+
+/* ---------- controls ---------- */
+const day=$("day");day.max=N-1;
+const jump=$("jump");jump.innerHTML=`<option value="">Jump to an incident…</option>`+D.incidents.map(n=>`<option value="${n.start}">${sdate(n.start)} · ${n.note}</option>`).join("")+`<option value="${S[N-1].date}">Latest day</option>`;
+jump.addEventListener("change",()=>{const j=S.findIndex(s=>s.date>=jump.value);if(j>=0){idx=Math.min(N-1,j+1);render()}jump.value=""});
+day.addEventListener("input",()=>{idx=+day.value;render()});
+$("prev").addEventListener("click",()=>{idx=Math.max(0,idx-1);render()});
+$("next").addEventListener("click",()=>{idx=Math.min(N-1,idx+1);render()});
+
+function kpi(k,v,s,level,stText){return`<div class="card kpi"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div>${level?`<div class="st">${icon(level)}${stText}</div>`:""}</div>`}
+function seqColor(v,max){if(v<=0)return"";const t=v/max;return t>.66?"var(--seq4)":t>.33?"var(--seq3)":t>.1?"var(--seq2)":"var(--seq1)"}
+
+function render(){
+  const s=S[idx],l=s.liquidity,k=s.kpi,L=D.limits;
+  day.value=idx;$("date").textContent=fdate(s.date);
+  const reds=s.alerts.filter(a=>a.level==="red").length,ambers=s.alerts.length-reds;
+  $("badges").innerHTML=(reds?`<span class="pill">${icon("red")}${reds} critical</span>`:"")+(ambers?`<span class="pill">${icon("amber")}${ambers} warning</span>`:"")+(!s.alerts.length?`<span class="pill">${icon("ok")}All clear</span>`:"");
+  const covL=l.coverage_days<L.coverage_red?"red":l.coverage_days<L.coverage_amber?"amber":"ok";
+  const otL=k.on_time_all_5d<L.on_time_red?"red":k.on_time_all_5d<L.on_time_amber?"amber":"ok";
+  const agedL=k.aged_amount>L.aged_red?"red":k.aged_amount>0?"amber":"ok";
+  const headL=l.prefund_headroom< -1?"red":l.topup_from_operating>2e6||l.topup_from_reserve>0?"amber":"ok";
+  $("kpis").innerHTML=
+    kpi("Available liquidity","$"+M(l.available)+"M",`after $${M(l.restricted)}M restricted`,covL,`${(l.coverage_days??0).toFixed(1)} days of payouts`)+
+    kpi("Tomorrow's payouts","$"+M(l.payouts_tomorrow)+"M",`top-up today $${M(l.topup_from_operating+l.topup_from_reserve)}M`,headL,headL==="ok"?"Prefunded":"Needed a top-up")+
+    kpi("On-time settlement",pct(k.on_time_all_5d),"value due, last 5 days",otL,otL==="ok"?"Within target":"Below 90% target")+
+    kpi("Open exceptions",usd(k.open_amount),`${k.open_count} items`,null)+
+    kpi("Aged over 5 days",usd(k.aged_amount),"exceptions to escalate",agedL,agedL==="ok"?"None":agedL==="red"?"Over $2M":"Escalate")+
+    kpi("Auto-match rate",pct(k.auto_match_20d),`${k.lines_20d.toLocaleString()} bank lines, 20 days`,null);
+  $("alerts").innerHTML=s.alerts.length?s.alerts.map(a=>`<li>${icon(a.level)}<div><span class="lvl">${STATUS[a.level].l}</span>${a.text}</div></li>`).join(""):`<li>${icon("ok")}<div><span class="lvl">OK</span>No alerts. Every source settled on time and liquidity is above target.</div></li>`;
+  cash(idx);cov(idx);exc(idx);
+  const max=Math.max(1,...s.sources.flatMap(r=>r.aging));
+  $("t-src").querySelector("thead").innerHTML=`<tr><th>Source</th><th>Due today</th><th>On time, 5d</th><th>Open</th>${D.buckets.map(b=>`<th>${b} bd</th>`).join("")}</tr>`;
+  $("t-src").querySelector("tbody").innerHTML=s.sources.map(r=>{const lv=r.on_time_5d==null?"ok":r.on_time_5d<L.on_time_red?"red":r.on_time_5d<L.on_time_amber?"amber":"ok";
+    return`<tr><td>${r.name}</td><td>${usd(r.due)}</td><td><span style="display:inline-flex;gap:6px;align-items:center">${icon(lv)}${pct(r.on_time_5d)}</span></td><td>${r.open?usd(r.open):"–"}</td>${r.aging.map(v=>{const c=seqColor(v,max);return`<td class="cell" style="${c?`background:${c};color:${c==="var(--seq1)"||c==="var(--seq2)"?"var(--ink)":"#fff"}`:""}">${v?K(v):"–"}</td>`}).join("")}</tr>`}).join("");
+  $("t-top").querySelector("tbody").innerHTML=s.top.length?s.top.map(r=>`<tr><td><code>${r.id}</code></td><td style="text-align:left">${r.type}</td><td style="text-align:left">${r.source}</td><td>${usd(r.amount)}</td><td>${r.age}</td></tr>`).join(""):`<tr><td colspan="5" class="empty">Nothing open.</td></tr>`;
+  $("t-acct").querySelector("tbody").innerHTML=D.accounts.map(a=>`<tr><td>${a.label}</td><td>${a.bank}</td><td>${M(l[a.code])}</td></tr>`).join("")+`<tr><td><strong>Total</strong></td><td>${l.top_bank} ${(l.top_bank_share*100).toFixed(0)}%</td><td><strong>${M(l.total_cash)}</strong></td></tr>`;
+}
+
+(function engine(){const e=D.engine,r=e.rules,tot=Object.values(r).reduce((a,b)=>a+b,0);
+  const rows=[["1","Reference found, amount agrees","reference"],["2","Reference found, short-paid (variance raised)","reference+variance"],["3","Split across lines with one reference","split"],["4","No reference: exact amount, same source and bank, value date −1 to +5 days, unique","amount+date"],["5","No reference: one line equals two or three netted batches","netted"],["–","Matched by operations after investigation","manual"],["–","Still open","open"]];
+  $("t-eng").querySelector("tbody").innerHTML=rows.filter(x=>r[x[2]]).map(([p,d,k])=>`<tr><td>${p}</td><td style="text-align:left;white-space:normal">${d}</td><td>${r[k].toLocaleString()}</td><td>${(100*r[k]/tot).toFixed(1)}%</td></tr>`).join("");
+  $("eng-lede").textContent=`The reconciliation engine matched ${pct(e.auto_match_batches)} of ${e.batches.toLocaleString()} settlement batches ($${(e.settled_usd/1e9).toFixed(2)}B) to ${e.lines.toLocaleString()} bank lines without a person. Scored against the known truth, every link it proposed was correct (precision ${pct(e.precision)}, recall ${pct(e.recall)}); what it could not match went to the exception queue rather than being forced.`;
+})();
+render();
+</script>
+</body>
+</html>

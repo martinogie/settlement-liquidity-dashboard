@@ -1,0 +1,68 @@
+{
+  "period": [
+    "2026-04-01",
+    "2026-10-09"
+  ],
+  "business_days": 134,
+  "batches": 4690,
+  "settled_usd": 3351245177.64,
+  "bank_lines": 4734,
+  "auto_match_batches": 0.9968017057569296,
+  "auto_match_lines": 0.9926066751161808,
+  "rules": {
+    "reference": 4218,
+    "amount+date": 337,
+    "reference+variance": 60,
+    "split": 36,
+    "netted": 24,
+    "manual": 14,
+    "open": 1
+  },
+  "engine_accuracy": {
+    "precision": 1.0,
+    "recall": 0.9968260685569191,
+    "true_links": 4726,
+    "proposed_links": 4711
+  },
+  "red_alert_days": [
+    "2026-04-22",
+    "2026-04-23",
+    "2026-04-24",
+    "2026-04-27",
+    "2026-08-18",
+    "2026-08-19",
+    "2026-08-20",
+    "2026-08-21",
+    "2026-08-24",
+    "2026-08-25",
+    "2026-09-17",
+    "2026-09-18",
+    "2026-09-29",
+    "2026-10-01",
+    "2026-10-02"
+  ],
+  "incidents": [
+    {
+      "source": "AX",
+      "start": "2026-08-17",
+      "days": 3,
+      "delay": 3,
+      "note": "Amex settlement outage"
+    },
+    {
+      "source": "AC",
+      "start": "2026-09-14",
+      "days": 1,
+      "delay": 2,
+      "note": "ACH file rejected by bank"
+    },
+    {
+      "source": "VI",
+      "start": "2026-09-29",
+      "days": 1,
+      "delay": 1,
+      "note": "Visa settlement held one day"
+    }
+  ],
+  "runtime_seconds": 5.1
+}
