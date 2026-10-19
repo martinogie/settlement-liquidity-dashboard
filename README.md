@@ -125,7 +125,7 @@ Because the true batch behind every bank line is known, the matching engine can 
 
 ## How this was built
 
-Built with AI-assisted coding (Claude). Design, controls and review are my own.
+Built with AI-assisted coding. Design, controls and review are my own.
 
 ## License
 
